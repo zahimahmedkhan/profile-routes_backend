@@ -45,17 +45,6 @@ appRouter.post("/signup", async (req, res) => {
 
    await user.save();
 
-    const token = await jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
-      expiresIn: "7d",
-    });
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
-
     res.status(201).json({
       message: "Signup successful",
       user: {
@@ -76,45 +65,51 @@ appRouter.post("/signup", async (req, res) => {
 
 
 appRouter.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Check if user exists by email only
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found. Please sign up first." });
-    }
-
-    // Compare plain password with hashed password
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
-      expiresIn: "7d",
-    });
-
-    // Set HTTP-only cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None", // Needed for cross-site cookie if using frontend on a different domain
-      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-    });
-
-    // Respond with success and user info
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        id: user._id,
-        email: user.email,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Error logging in: " + error.message });
-  }
+    try {
+        const { email, password } = req.body;
+    
+        // Validate input
+        if (!email || !password) {
+          return res.status(400).json({ message: "Email and password are required" });
+        }
+    
+        // Find user by email
+        const user = await User.findOne({ email });
+        if (!user) {
+          return res.status(404).json({ message: "User not found. Please sign up first." });
+        }
+    
+        // Compare password
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        if (!isPasswordCorrect) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+    
+        // Generate JWT token
+        const token = jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
+          expiresIn: "7d",
+        });
+    
+        // Set cookie
+        res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "None", // required for cross-site cookies
+          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        });
+    
+        // Return response
+        res.status(200).json({
+          message: "Login successful",
+          user: {
+            id: user._id,
+            email: user.email,
+          },
+        });
+      } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ message: "Error logging in: " + error.message });
+      }
 });
 appRouter.post("/logout", async (req, res) => {
   try {
