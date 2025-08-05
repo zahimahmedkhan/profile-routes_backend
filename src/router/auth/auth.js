@@ -8,32 +8,51 @@ const jwt = require("jsonwebtoken");
 
 appRouter.post("/signup", async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role, bio, skills } =
-      req.body;
+    const { firstName, lastName, email, password, role, bio, skills } = req.body;
 
+    // Input Validation
     if (!firstName || !lastName) {
-      throw new Error("name not found");
-    } else if (!validator.isEmail(email)) {
-      throw new Error("invalid Email");
-    } else if (await User.findOne({ email })) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Email already exists" });
-    } else if (!validator.isStrongPassword(password)) {
-      throw new Error("Please type a strong password");
-    } else if (!role) {
-      throw new Error("role not found");
-    } else if (!bio) {
-      throw new Error("bio not found");
-    } else if (!skills) {
-      throw new Error("skills is required");
-    } else if (skills.length > 10) {
-      throw new Error("You can only add up to 10 skills");
+      return res.status(400).json({ success: false, message: "First and last name are required." });
     }
 
+    if (!email || !validator.isEmail(email)) {
+      return res.status(400).json({ success: false, message: "Invalid or missing email address." });
+    }
+
+    if (!password || !validator.isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: "Password is not strong enough. Include uppercase, lowercase, numbers, and symbols.",
+      });
+    }
+
+    if (!role) {
+      return res.status(400).json({ success: false, message: "Role is required." });
+    }
+
+    if (!bio) {
+      return res.status(400).json({ success: false, message: "Bio is required." });
+    }
+
+    if (!skills || !Array.isArray(skills)) {
+      return res.status(400).json({ success: false, message: "Skills must be an array." });
+    }
+
+    if (skills.length > 10) {
+      return res.status(400).json({ success: false, message: "You can only add up to 10 skills." });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ success: false, message: "Email already exists." });
+    }
+
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User({
+    // Create and save user
+    const user = new User({
       firstName,
       lastName,
       email,
@@ -43,9 +62,11 @@ appRouter.post("/signup", async (req, res) => {
       skills,
     });
 
-   await user.save();
+    await user.save();
 
-    res.status(201).json({
+    // Respond
+    return res.status(201).json({
+      success: true,
       message: "Signup successful",
       user: {
         id: user._id,
@@ -55,50 +76,46 @@ appRouter.post("/signup", async (req, res) => {
         role: user.role,
         bio: user.bio,
         skills: user.skills,
-      }
+      },
     });
+
   } catch (error) {
     console.error("Signup error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: "Server error. " + error.message });
   }
 });
+
 
 
 appRouter.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
     
-        // Validate input
         if (!email || !password) {
           return res.status(400).json({ message: "Email and password are required" });
         }
     
-        // Find user by email
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).select("+password");
         if (!user) {
           return res.status(404).json({ message: "User not found. Please sign up first." });
         }
     
-        // Compare password
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
         if (!isPasswordCorrect) {
           return res.status(401).json({ message: "Invalid credentials" });
         }
     
-        // Generate JWT token
         const token = jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
           expiresIn: "7d",
         });
     
-        // Set cookie
         res.cookie("token", token, {
           httpOnly: true,
           secure: true,
-          sameSite: "None", // required for cross-site cookies
-          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          sameSite: "None",
+          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
     
-        // Return response
         res.status(200).json({
           message: "Login successful",
           user: {
@@ -111,6 +128,8 @@ appRouter.post("/login", async (req, res) => {
         res.status(500).json({ message: "Error logging in: " + error.message });
       }
 });
+
+
 appRouter.post("/logout", async (req, res) => {
   try {
     res.cookie("token", "", {
