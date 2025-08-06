@@ -112,7 +112,8 @@ appRouter.post("/login", async (req, res) => {
         res.cookie("token", token, {
           httpOnly: true,
           secure: true,
-          sameSite: "None",
+          sameSite: "none",
+          path: "/",
           expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
     
