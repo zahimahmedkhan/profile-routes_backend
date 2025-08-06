@@ -136,7 +136,8 @@ appRouter.post("/logout", async (req, res) => {
     res.cookie("token", "", {
       httpOnly: true,
       secure: true,
-      sameSite: "None",
+      sameSite: "none",
+      path: "/",
       expires: new Date(0),
     });
 
